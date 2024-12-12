@@ -30,3 +30,7 @@ Then you just have to [install ldproxy](https://docs.esp-rs.org/book/troubleshoo
 cargo install ldproxy
 
 ```
+
+### Thanks for getting me started
+- [yt video - shanemmattner](https://www.youtube.com/watch?v=vUSHaogHs1s&ab_channel=ShaneMattner)
+- [article - Rajesh Pachaikani](https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b)
