@@ -9,12 +9,27 @@ use esp_idf_svc::{
 };
 use embedded_svc::wifi::{ClientConfiguration, Wifi, Configuration};
 use heapless::String;
+use dotenv::dotenv;
+use std::env;
+
 
 /**
  * Initialize the wifi connection
  * The LED will blink slowly until the connection is established
  */
 fn init_wifi(peripherals: &mut Peripherals) {
+    // Reads the .env file
+    // https://dev.to/francescoxx/3-ways-to-use-environment-variables-in-rust-4eaf
+    dotenv().ok();
+
+    let wlan_ssid = "WLAN-Zingst";
+    let wlan_password = "7547112874489301";
+
+    // match &wlan_ssid {
+    //     Ok(val) => println!("wlan_ssid: {:?}", val),
+    //     Err(e) => println!("Error wlan_ssid: {}", e),
+    // }
+
     let sys_loop = EspSystemEventLoop::take().unwrap();
     let nvs = EspDefaultNvsPartition::take().unwrap();
 
@@ -28,8 +43,8 @@ fn init_wifi(peripherals: &mut Peripherals) {
     let mut ssid: String<32> = String::new();
     let mut password: String<64> = String::new();
 
-    ssid.push_str("WIFI_SSID").unwrap();
-    password.push_str("WIFI_PASSWORD").unwrap();
+    ssid.push_str(wlan_ssid).unwrap();
+    password.push_str(wlan_password).unwrap();
 
     wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: ssid,
@@ -96,6 +111,8 @@ fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
+
+    dotenv().ok();
 
     // Peripherals is a singleton, so we have to pass a pointer to other functions instead of the instance itself
     // Furthermore it needs to be mutable for the functions to access things inside the struct (like pins and modem)
