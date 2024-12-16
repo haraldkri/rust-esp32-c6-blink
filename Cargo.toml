@@ -21,6 +21,7 @@ opt-level = "z"
 default = []
 pio = ["esp-idf-svc/pio"]
 experimental = ["esp-idf-svc/experimental"]
+vendored-openssl = ["opcua/vendored-openssl"]
 
 [dependencies]
 log = "0.4"
@@ -32,8 +33,9 @@ embedded-hal = "1.0.0"
 embedded-svc = "0.28.0"
 heapless = "0.8.0"
 dotenv = "0.15.0"
-
+opcua = { version = "0.12.0", features = ["server", "vendored-openssl"] }
+openssl = { version = "0.10", features = ["vendored"] }
 
 [build-dependencies]
 embuild = "0.32.0"
-cc = "=1.1.30" # Version "1.1.30" necessary until a new version of `esp-idf-sys` is released
+cc = "1.2.4" # Version "1.1.30" necessary until a new version of `esp-idf-sys` is released
