@@ -22,8 +22,8 @@ fn init_wifi(peripherals: &mut Peripherals) {
     // https://dev.to/francescoxx/3-ways-to-use-environment-variables-in-rust-4eaf
     dotenv().ok();
 
-    let wlan_ssid = "WLAN-Zingst";
-    let wlan_password = "7547112874489301";
+    let wlan_ssid = "wlan_ssid";
+    let wlan_password = "wlan_password";
 
     // match &wlan_ssid {
     //     Ok(val) => println!("wlan_ssid: {:?}", val),
