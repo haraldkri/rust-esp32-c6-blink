@@ -1,3 +1,3 @@
 [toolchain]
-channel = "nightly"
+channel = "esp" # important!
 components = ["rust-src"]
