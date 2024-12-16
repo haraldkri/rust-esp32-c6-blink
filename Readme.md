@@ -34,3 +34,47 @@ cargo install ldproxy
 ### Thanks for getting me started
 - [yt video - shanemmattner](https://www.youtube.com/watch?v=vUSHaogHs1s&ab_channel=ShaneMattner)
 - [article - Rajesh Pachaikani](https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b)
+
+
+# Motherf*cking channels
+```sh
+cargo install espup
+espup install
+```
+
+```sh
+nano ~/.bash_profile # or ~/.bashrc or ~/.zshrc or whatever you use
+```
+
+- add the following lines:
+```
+export PATH="$HOME/.cargo/bin:$PATH"
+source $HOME/export-esp.sh
+```
+- save and exit
+- make sure the changes are applied:
+```sh
+ source ~/.bash_profile
+```
+
+- switch to the esp toolchain:
+```sh
+rustup default esp
+rustup target add riscv32imac-esp-espidf
+```
+
+- Don't forget to update the `rust-toolchain.toml` as this would otherwise override the one we just set:
+```
+[toolchain]
+channel = "esp"
+components = ["rust-src"]
+```
+
+- Then these two plebs should be working fine:
+```sh
+cargo build --release
+```
+```sh
+cargo run --release
+
+```
