@@ -1,6 +1,6 @@
-use crate::{normal_led, smart_led};
+use crate::smart_led;
+use crate::smart_led::set_led_color;
 use anyhow::Error;
-use dotenv::dotenv;
 use embedded_svc::http::Method;
 use embedded_svc::wifi::{ClientConfiguration, Configuration};
 use esp_idf_hal::peripherals::Peripherals;
@@ -8,6 +8,16 @@ use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::http::server::{Configuration as HttpServerConfig, EspHttpServer};
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::wifi::EspWifi;
+use serde::Deserialize;
+use std::cell::RefCell;
+use std::thread::sleep;
+use std::time::Duration;
+
+// Define a struct to match the expected JSON format
+#[derive(Deserialize)]
+struct ColorRequest {
+    leds: Vec<String>, // Expect an array of hex color strings
+}
 
 pub fn index_html() -> std::string::String {
     r#"
@@ -24,35 +34,23 @@ pub fn index_html() -> std::string::String {
 "#.to_string()
 }
 
-/**
- * Initialize the wifi connection
- * The LED will blink slowly until the connection is established
- */
-pub fn init_wifi(peripherals: &mut Peripherals, sys_loop: EspSystemEventLoop) -> anyhow::Result<(), Error> {
-    // Reads the .env file
-    // https://dev.to/francescoxx/3-ways-to-use-environment-variables-in-rust-4eaf
-    dotenv().ok();
+
+pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyhow::Result<(), Error> {
+    // Wrap the LED pin in a RefCell to allow interior mutability
+    let led_pin = RefCell::new(peripherals.pins.gpio8);
+    let rmt_channel = RefCell::new(peripherals.rmt.channel0);
 
     let wlan_ssid = "WLAN-Zingst";
     let wlan_password = "7547112874489301";
 
-    let nvs = EspDefaultNvsPartition::take()?;
-    let pins = &mut peripherals.pins;
-    let rmt = &mut peripherals.rmt;
-    let modem = &mut peripherals.modem;
-
-    let mut wifi_driver = EspWifi::new(
-        modem,
-        sys_loop,
-        Some(nvs),
-    )?;
-
-    // Define SSID and Password with appropriate sizes
     let mut ssid: heapless::String<32> = heapless::String::new();
     let mut password: heapless::String<64> = heapless::String::new();
 
     ssid.push_str(wlan_ssid).unwrap();
     password.push_str(wlan_password).unwrap();
+
+    let nvs = EspDefaultNvsPartition::take()?;
+    let mut wifi_driver = EspWifi::new(peripherals.modem, sys_loop, Some(nvs))?;
 
     wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid,
@@ -60,20 +58,30 @@ pub fn init_wifi(peripherals: &mut Peripherals, sys_loop: EspSystemEventLoop) ->
         ..Default::default()
     }))?;
 
+    if (!wifi_driver.is_connected()?) {
+        let mut pin = led_pin.borrow_mut();
+        let mut channel = rmt_channel.borrow_mut();
+        let _ = set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(255, 255, 0));
+    }
+
     wifi_driver.start()?;
     wifi_driver.connect()?;
     while !wifi_driver.is_connected()? {
-        let config = wifi_driver.get_configuration()?;
-        esp_println::println!("Waiting for station {:?}", config);
-        normal_led::blink_slow(pins);
+        esp_println::println!("Connecting...");
+        // Sleep to reduce CPU usage
+        sleep(Duration::from_millis(200));
     }
 
-    esp_println::println!("Should be connected");
-    esp_println::println!("IP info: {:?}", wifi_driver.sta_netif().get_ip_info()?);
+    if (wifi_driver.is_connected()?) {
+        let mut pin = led_pin.borrow_mut();
+        let mut channel = rmt_channel.borrow_mut();
+        let _ = set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(0, 255, 0));
+    }
 
-    // Initialize the HTTP server
-    let mut httpserver = EspHttpServer::new(&HttpServerConfig::default())
-        .expect("Failed to initialize HTTP server");
+    esp_println::println!("Wi-Fi Connected!");
+
+    let mut httpserver = EspHttpServer::new(&HttpServerConfig::default())?;
+
 
     // Define Server Request Handler Behaviour on Get for Root URL
     httpserver.fn_handler("/", Method::Get, |request| {
@@ -84,14 +92,54 @@ pub fn init_wifi(peripherals: &mut Peripherals, sys_loop: EspSystemEventLoop) ->
         Ok::<(), Error>(())
     })?;
 
-    // Now call static_light_smart with a mutable reference to peripherals
-    // smart_led::set_led_color(pins, rmt, 8, smart_led::Rgb::new(255, 0, 0))?;
-    smart_led::rainbow_led_color(pins, rmt, 8)?;
-    // normal_led::static_light(&mut peripherals.pins);
 
-    // Keep the function alive
+    // POST /set_color handler
+    httpserver.fn_handler("/set_color", Method::Post, move |mut request| {
+        let mut body = [0u8; 512];
+        let length = request.read(&mut body)?;
+        let body_str = std::str::from_utf8(&body[..length])?;
+
+        // Deserialize the incoming JSON payload
+        let color_request: ColorRequest = serde_json::from_str(body_str)
+            .map_err(|e| {
+                esp_println::println!("Failed to parse JSON: {}", e);
+                Error::msg("Invalid JSON payload")
+            })?;
+
+        // Process each color in the `leds` array
+        for hex_color in color_request.leds {
+            let rgb = hex_to_rgb(&hex_color).map_err(|e| {
+                esp_println::println!("Failed to convert hex to RGB: {}", e);
+                Error::msg("Invalid hex color")
+            })?;
+
+            esp_println::println!("Setting LED to: R={}, G={}, B={}", rgb.r, rgb.g, rgb.b);
+            let mut pin = led_pin.borrow_mut(); // Mutably borrow the GPIO pin
+            let mut channel = rmt_channel.borrow_mut(); // Mutably borrow the RMT channel
+
+            let _ = set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(rgb.r, rgb.g, rgb.b));
+        }
+
+        let mut response = request.into_ok_response()?;
+        response.write(b"{\"status\": \"success\"}")?;
+        Ok::<(), Error>(())
+    })?;
+
     loop {
-        // Main loop keeps the HTTP server and Wi-Fi alive
         std::thread::sleep(std::time::Duration::from_secs(60));
     }
+}
+
+/// Convert a hex color string to RGB values.
+fn hex_to_rgb(hex: &str) -> Result<smart_led::Rgb, &'static str> {
+    let hex = hex.trim_start_matches('#'); // Remove the '#' if present
+    if hex.len() != 6 {
+        return Err("Hex color must be 6 characters long");
+    }
+
+    let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| "Invalid hex for red")?;
+    let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| "Invalid hex for green")?;
+    let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| "Invalid hex for blue")?;
+
+    Ok(smart_led::Rgb::new(r, g, b))
 }

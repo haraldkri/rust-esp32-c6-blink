@@ -28,5 +28,5 @@ fn main() {
     println!("Starting Christmas Hackathon\nThis application is a basic xmas led starter for christmas led blinking.\n");
 
 
-    wifi_http_server::init_wifi(&mut peripherals, sys_loop.clone().unwrap()).expect("Failed to initialize wifi");
+    wifi_http_server::init_wifi(peripherals, sys_loop.clone().unwrap()).expect("Failed to initialize wifi");
 }

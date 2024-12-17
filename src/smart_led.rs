@@ -2,8 +2,9 @@ use anyhow::{bail, Error, Result};
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::rmt::config::TransmitConfig;
-use esp_idf_hal::rmt::{FixedLengthSignal, PinState, Pulse, TxRmtDriver};
+use esp_idf_hal::rmt::{FixedLengthSignal, PinState, Pulse, TxRmtDriver, CHANNEL0};
 use std::time::Duration;
+use serde::Deserialize;
 
 pub fn static_light_smart(peripherals: &mut Peripherals) {
     let led = &mut peripherals.pins.gpio8;
@@ -49,15 +50,9 @@ pub fn rainbow_led_color(pins: &mut esp_idf_hal::gpio::Pins, rmt: &mut esp_idf_h
     Ok(())
 }
 
-pub fn set_led_color(pins: &mut esp_idf_hal::gpio::Pins, rmt: &mut esp_idf_hal::rmt::RMT, pin_number: u32, rgb: Rgb) -> Result<(), Error> {
+pub fn set_led_color(pin: &mut esp_idf_hal::gpio::Gpio8, channel: &mut CHANNEL0, rgb: Rgb) -> Result<(), Error> {
     println!("LED ON - r{},g{},b{}", rgb.r, rgb.g, rgb.b);
-    let pin = match pin_number {
-        8 => &mut pins.gpio8,
-        // Add more GPIO pins as needed
-        _ => bail!("Invalid GPIO pin number: {}", pin_number),
-    };
 
-    let channel = &mut rmt.channel0;
     let config = TransmitConfig::new().clock_divider(1);
     let mut tx = TxRmtDriver::new(channel, pin, &config)?;
 
@@ -87,9 +82,26 @@ pub fn neopixel(rgb: Rgb, tx: &mut TxRmtDriver) -> Result<(), Error> {
 }
 
 pub(crate) struct Rgb {
-    r: u8,
-    g: u8,
-    b: u8,
+    pub(crate) r: u8,
+    pub(crate) g: u8,
+    pub(crate) b: u8,
+}
+
+pub(crate) struct RgbArr {
+    pub(crate) rgb_values: Vec<Rgb>, // An array of RGB values
+}
+
+// Define a structure to deserialize the RGB array from JSON
+#[derive(Deserialize)]
+pub(crate) struct RgbValueArray {
+    pub(crate) rgb_values: Vec<RgbValue>, // An array of RGB values
+}
+
+#[derive(Deserialize)]
+struct RgbValue {
+    pub(crate) r: u8,
+    pub(crate) g: u8,
+    pub(crate) b: u8,
 }
 
 impl Rgb {
@@ -132,4 +144,18 @@ impl From<Rgb> for u32 {
     fn from(rgb: Rgb) -> Self {
         ((rgb.g as u32) << 16) | ((rgb.r as u32) << 8) | rgb.b as u32
     }
+}
+
+/// Convert a hex color string to RGB values.
+pub fn hex_to_rgb(hex: &str) -> Result<Rgb, &'static str> {
+    let hex = hex.trim_start_matches('#'); // Remove the '#' if present
+    if hex.len() != 6 {
+        return Err("Hex color must be 6 characters long");
+    }
+
+    let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| "Invalid hex for red")?;
+    let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| "Invalid hex for green")?;
+    let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| "Invalid hex for blue")?;
+
+    Ok(Rgb::new(r, g, b))
 }
