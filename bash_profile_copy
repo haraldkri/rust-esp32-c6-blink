@@ -1,0 +1,36 @@
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+
+# Created by `pipx` on 2024-12-12 07:40:16
+export PATH="$PATH:/Users/haraldkriebisch/.local/bin"
+. "$HOME/.cargo/env"
+
+export PATH="/Users/haraldkriebisch/.rustup/toolchains/esp/xtensa-esp-elf/esp-14.2.0_20240906/xtensa-esp-elf/bin:$PATH"
+
+export PATH="/Users/haraldkriebisch/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin:$PATH"
+
+export LIBCLANG_PATH="/Users/haraldkriebisch/.rustup/toolchains/esp/xtensa-esp32-elf-clang/esp-18.1.2_20240912/esp-clang/lib"
+
+alias python="python3"
+export PATH="$PATH:~/Library/Python/3.x/bin"
+alias pip="pip3"
+
+export PATH="$HOME/.cargo/bin:$PATH"
+source $HOME/export-esp.sh
+
+export OPENSSL_DIR="/opt/homebrew/opt/openssl@3"
+
+export OPENSSL_LIB_DIR=$OPENSSL_DIR/lib
+export OPENSSL_INCLUDE_DIR=$OPENSSL_DIR/include
+export OPENSSL_NO_PKG_CONFIG=1
+
+export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig"
+
+export RISCV32IMAC_ESP_ESPIDF_OPENSSL_NO_VENDOR=1 
+export OPENSSL_NO_VENDOR=1 
+export RISCV32IMAC_ESP_ESPIDF_OPENSSL_CONFIG_DIR=$OPENSSL_DIR 
+export OPENSSL_CONFIG_DIR=$OPENSSL_DIR
+
+
+
