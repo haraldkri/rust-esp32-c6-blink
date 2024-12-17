@@ -11,13 +11,34 @@ use embedded_svc::wifi::{ClientConfiguration, Wifi, Configuration};
 use heapless::String;
 use dotenv::dotenv;
 use std::env;
+use std::thread::sleep;
+use std::time::Duration;
+use embedded_svc::http::Method;
+use esp_idf_svc::http::server::{Configuration as HttpServerConfig, EspHttpServer};
+use anyhow::{Error, Result};
 
+fn index_html() -> std::string::String {
+    format!(
+        r#"
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>esp-rs web server</title>
+    </head>
+    <body>
+    Hello World from ESP!
+    </body>
+</html>
+"#
+    )
+}
 
 /**
  * Initialize the wifi connection
  * The LED will blink slowly until the connection is established
  */
-fn init_wifi(peripherals: &mut Peripherals) {
+fn init_wifi(peripherals: &mut Peripherals) -> Result<(), Error> {
     // Reads the .env file
     // https://dev.to/francescoxx/3-ways-to-use-environment-variables-in-rust-4eaf
     dotenv().ok();
@@ -62,6 +83,28 @@ fn init_wifi(peripherals: &mut Peripherals) {
 
     println!("Should be connected");
     println!("IP info: {:?}", wifi_driver.sta_netif().get_ip_info().unwrap());
+
+    let mut httpserver = EspHttpServer::new(&HttpServerConfig::default()).expect("Failed to initialize HTTP server");;
+    // Define Server Request Handler Behaviour on Get for Root URL
+    httpserver.fn_handler("/", Method::Get, |request| {
+        println!("Received HTTP request for /");
+        let html = index_html();
+        let mut response = request.into_ok_response()?;
+        response.write(html.as_bytes())?;
+        Ok::<(), Error>(())
+    })?;
+
+    println!(
+        "IP info: {:?}",
+        wifi_driver.sta_netif().get_ip_info().unwrap()
+    );
+
+    
+    // Loop to Avoid Program Termination
+    loop {
+        static_light(&mut peripherals.pins);
+        sleep(Duration::from_millis(1000));
+    }
 }
 
 /**
@@ -81,6 +124,19 @@ fn blink_slow(pins: &mut esp_idf_hal::gpio::Pins) {
     led_pin2.set_high().unwrap();
     println!("LED OFF");
     FreeRtos::delay_ms(1000);
+}
+
+/**
+ * Let the LED blink fast
+ * aka party hart
+ */
+fn static_light(pins: &mut esp_idf_hal::gpio::Pins) {
+    let mut led_pin = PinDriver::output(&mut pins.gpio8).unwrap();
+    let mut led_pin2 = PinDriver::output(&mut pins.gpio10).unwrap();
+
+    led_pin.set_low().unwrap();
+    led_pin2.set_low().unwrap();
+    println!("LED ON");
 }
 
 /**
