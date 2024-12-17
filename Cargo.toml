@@ -35,6 +35,8 @@ heapless = "0.8.0"
 dotenv = "0.15.0"
 opcua = { version = "0.12.0", features = ["server", "vendored-openssl"] }
 openssl = { version = "0.10", features = ["vendored"] }
+libc = "0.2.168" # oder die neueste Version
+signal-hook-registry = "1.4.2" # prüfe auf neuere Releases
 
 [build-dependencies]
 embuild = "0.32.0"
