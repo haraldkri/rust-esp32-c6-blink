@@ -10,7 +10,7 @@ use esp_idf_svc::{
 use embedded_svc::wifi::{ClientConfiguration, Wifi, Configuration};
 use heapless::String;
 use dotenv::dotenv;
-use std::env;
+use std::{env, thread};
 use std::thread::sleep;
 use std::time::Duration;
 use embedded_svc::http::Method;
@@ -98,13 +98,10 @@ fn init_wifi(peripherals: &mut Peripherals) -> Result<(), Error> {
         "IP info: {:?}",
         wifi_driver.sta_netif().get_ip_info().unwrap()
     );
-
     
-    // Loop to Avoid Program Termination
-    loop {
-        static_light(&mut peripherals.pins);
-        sleep(Duration::from_millis(1000));
-    }
+    static_light(&mut peripherals.pins);
+    
+    Ok(())
 }
 
 /**
@@ -127,16 +124,18 @@ fn blink_slow(pins: &mut esp_idf_hal::gpio::Pins) {
 }
 
 /**
- * Let the LED blink fast
- * aka party hart
+ * Let the LED light up
  */
 fn static_light(pins: &mut esp_idf_hal::gpio::Pins) {
     let mut led_pin = PinDriver::output(&mut pins.gpio8).unwrap();
     let mut led_pin2 = PinDriver::output(&mut pins.gpio10).unwrap();
 
-    led_pin.set_low().unwrap();
-    led_pin2.set_low().unwrap();
-    println!("LED ON");
+    loop {
+        led_pin.set_low().unwrap(); // Ensure LED is on
+        led_pin2.set_low().unwrap(); // Ensure LED2 is on
+        // Sleep to reduce CPU usage
+        sleep(Duration::from_millis(100));
+    }
 }
 
 /**
