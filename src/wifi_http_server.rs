@@ -34,7 +34,18 @@ pub fn index_html() -> std::string::String {
 "#.to_string()
 }
 
-
+/// Initializes the Wi-Fi connection using the provided peripherals and system event loop.
+/// This function retrieves SSID and password from environment variables, attempts to connect
+/// to the specified Wi-Fi network, and indicates connection status by controlling an LED.
+/// It also sets up an HTTP server with handlers for setting and getting LED colors.
+///
+/// The function performs the following steps:
+/// 1. Reads the Wi-Fi credentials from environment variables.
+/// 2. Configures the Wi-Fi driver with the credentials.
+/// 3. If not connected, sets the LED to yellow and tries to connect to the Wi-Fi network.
+/// 4. Once connected, sets the LED to green and logs the connection status.
+/// 5. Initializes an HTTP server with routes for color setting and retrieval.
+/// 6. Enters an infinite loop, keeping the main thread alive.
 pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyhow::Result<(), Error> {
     // Read SSID and password from the environment
     let wlan_ssid = dotenv!("WIFI_SSID");

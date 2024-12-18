@@ -7,6 +7,8 @@ use esp_idf_hal::rmt::{FixedLengthSignal, PinState, Pulse, TxRmtDriver, CHANNEL0
 use serde::Deserialize;
 use std::time::Duration;
 
+/// Function to control a static light on the smart LED. It first sets the LED to white for 3 seconds,
+/// then enters an infinite loop cycling through rainbow colors at 20% brightness.
 pub fn static_light_smart(peripherals: &mut Peripherals) {
     let led = &mut peripherals.pins.gpio8;
     let channel = &mut peripherals.rmt.channel0;
@@ -25,6 +27,8 @@ pub fn static_light_smart(peripherals: &mut Peripherals) {
     }).expect("Failed to set neopixel color");
 }
 
+/// Function to control the rainbow LED color. It takes the pin number as input, sets the LED to white
+/// for 3 seconds, then cycles through rainbow colors at 20% brightness.
 pub fn rainbow_led_color(pins: &mut esp_idf_hal::gpio::Pins, rmt: &mut esp_idf_hal::rmt::RMT, pin_number: u32) -> Result<(), Error> {
     let pin = match pin_number {
         8 => &mut pins.gpio8,
@@ -44,13 +48,14 @@ pub fn rainbow_led_color(pins: &mut esp_idf_hal::gpio::Pins, rmt: &mut esp_idf_h
     (0..360).cycle().try_for_each(|hue| {
         FreeRtos::delay_ms(10);
         let rgb = Rgb::from_hsv(hue, 100, 20)?;
-        // println!("LED ON - r{},g{},b{}", rgb.r, rgb.g, rgb.b);
         neopixel(rgb, &mut tx)
     }).expect("Failed to set neopixel color");
 
     Ok(())
 }
 
+/// Function to set the LED color using the specified RGB value. It initializes the RMT driver and sends
+/// the RGB value to the LED.
 pub fn set_led_color(pin: &mut esp_idf_hal::gpio::Gpio8, channel: &mut CHANNEL0, rgb: Rgb) -> Result<(), Error> {
     println!("LED ON - r{},g{},b{}", rgb.r, rgb.g, rgb.b);
 
@@ -62,6 +67,8 @@ pub fn set_led_color(pin: &mut esp_idf_hal::gpio::Gpio8, channel: &mut CHANNEL0,
     Ok(())
 }
 
+/// Function to send a color to a NeoPixel LED. It constructs the necessary signal and sends it
+/// to the LED driver.
 pub fn neopixel(rgb: Rgb, tx: &mut TxRmtDriver) -> Result<(), Error> {
     let color: u32 = rgb.into();
     let ticks_hz = tx.counter_clock()?;
@@ -82,6 +89,8 @@ pub fn neopixel(rgb: Rgb, tx: &mut TxRmtDriver) -> Result<(), Error> {
     Ok(())
 }
 
+/// Function to set multiple LED colors in a chain. It takes an array of RGB values and sends them
+/// to the LED chain using the RMT driver.
 pub fn set_led_colors(
     pin: &mut esp_idf_hal::gpio::Gpio8,
     channel: &mut CHANNEL0,
@@ -100,6 +109,8 @@ pub fn set_led_colors(
     Ok(())
 }
 
+/// Function to send an array of RGB colors to a NeoPixel LED chain. It constructs the necessary signal
+/// and sends it to the LED driver.
 pub fn neopixel_chain(colors: &[Rgb], tx: &mut TxRmtDriver) -> Result<(), Error> {
     let ticks_hz = tx.counter_clock()?;
     let (t0h, t0l, t1h, t1l) = (
@@ -110,7 +121,7 @@ pub fn neopixel_chain(colors: &[Rgb], tx: &mut TxRmtDriver) -> Result<(), Error>
     );
 
     /// Create a signal for the entire LED chain
-    /// 24 bits per LED, 21 LEDs -> 24 * 21 = 504 Bytes used for the signal, make sure the current CONFIG_ESP_MAIN_TASK_STACK_SIZE is big enought to handle that
+    /// 24 bits per LED, 21 LEDs -> 24 * 21 = 504 Bytes used for the signal, make sure the current CONFIG_ESP_MAIN_TASK_STACK_SIZE is big enough to handle that
     let mut signal = FixedLengthSignal::<{ 24 * 21 }>::new(); // Adjust for max LED count
     for (index, rgb) in colors.iter().enumerate() {
         let color = rgb.to_u32(); // Use the helper function
@@ -126,6 +137,7 @@ pub fn neopixel_chain(colors: &[Rgb], tx: &mut TxRmtDriver) -> Result<(), Error>
     Ok(())
 }
 
+/// Structure representing an RGB color with red, green, and blue components.
 #[derive(Debug)]
 pub(crate) struct Rgb {
     pub(crate) r: u8,
@@ -133,16 +145,18 @@ pub(crate) struct Rgb {
     pub(crate) b: u8,
 }
 
+/// Structure to hold an array of RGB values.
 pub(crate) struct RgbArr {
     pub(crate) rgb_values: Vec<Rgb>, // An array of RGB values
 }
 
-// Define a structure to deserialize the RGB array from JSON
+/// Structure to deserialize the RGB array from JSON.
 #[derive(Deserialize)]
 pub(crate) struct RgbValueArray {
     pub(crate) rgb_values: Vec<RgbValue>, // An array of RGB values
 }
 
+/// Structure representing RGB values for deserialization.
 #[derive(Deserialize)]
 pub struct RgbValue {
     pub(crate) r: u8,
@@ -151,25 +165,26 @@ pub struct RgbValue {
 }
 
 impl Rgb {
+    /// Constructor to create a new RGB color with the specified red, green, and blue values.
     pub fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
-    /// Helper function to convert Rgb into u32 in GRB format
+    /// Helper function to convert Rgb into u32 in GRB format.
     pub fn to_u32(&self) -> u32 {
         ((self.g as u32) << 16) | ((self.r as u32) << 8) | (self.b as u32)
     }
 
-    /// Converts hue, saturation, value to RGB
-    pub fn from_hsv(h: u32, s: u32, v: u32) -> Result<Self> {
-        if h > 360 || s > 100 || v > 100 {
-            bail!("The given HSV values are not in valid range");
-        }
-        let s = s as f64 / 100.0;
-        let v = v as f64 / 100.0;
-        let c = s * v;
-        let x = c * (1.0 - (((h as f64 / 60.0) % 2.0) - 1.0).abs());
+    /// Converts hue, saturation, value to RGB.
+    pub fn from_hsv(h: u32, s: u32, v: u32) -> Result<Rgb, Error> {
+        let h = h % 360;
+        let s = s.clamp(0, 100) as f32 / 100.0;
+        let v = v.clamp(0, 100) as f32 / 100.0;
+
+        let c = v * s;
+        let x = c * (1.0 - ((h as f32 / 60.0) % 2.0 - 1.0).abs());
         let m = v - c;
+
         let (r, g, b) = match h {
             0..=59 => (c, x, 0.0),
             60..=119 => (x, c, 0.0),
@@ -178,13 +193,11 @@ impl Rgb {
             240..=299 => (x, 0.0, c),
             _ => (c, 0.0, x),
         };
-        Ok(Self {
-            r: ((r + m) * 255.0) as u8,
-            g: ((g + m) * 255.0) as u8,
-            b: ((b + m) * 255.0) as u8,
-        })
+
+        Ok(Rgb::new(((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8))
     }
 }
+
 
 impl From<Rgb> for u32 {
     /// Convert RGB to u32 color value
