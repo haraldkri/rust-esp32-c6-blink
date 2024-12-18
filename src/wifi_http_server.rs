@@ -10,83 +10,9 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::wifi::EspWifi;
 use serde::Deserialize;
 use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
-
-// Define a struct to match the expected JSON format
-#[derive(Deserialize)]
-struct ColorRequest {
-    leds: Vec<String>, // Expect an array of hex color strings
-}
-
-pub fn index_html() -> std::string::String {
-    r#"
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <title>esp-rs web server</title>
-    </head>
-    <body>
-    Hello World from ESP!
-    </body>
-</html>
-"#.to_string()
-}
-
-fn read_wifi_credentials() -> anyhow::Result<(heapless::String<32>, heapless::String<64>), Error> {
-    let wlan_ssid = dotenv!("WIFI_SSID");
-    let wlan_password = dotenv!("WIFI_PASSWORD");
-
-    let mut ssid: heapless::String<32> = heapless::String::new();
-    let mut password: heapless::String<64> = heapless::String::new();
-
-    ssid.push_str(&*wlan_ssid).unwrap();
-    password.push_str(&*wlan_password).unwrap();
-
-    Ok((ssid, password))
-}
-
-fn initialize_led_pins(pins: esp_idf_hal::gpio::Pins, rmt: esp_idf_hal::rmt::RMT) -> anyhow::Result<(RefCell<esp_idf_hal::gpio::Gpio8>, RefCell<esp_idf_hal::rmt::CHANNEL0>), Error> {
-    let led_pin = RefCell::new(pins.gpio8);
-    let rmt_channel = RefCell::new(rmt.channel0);
-    Ok((led_pin, rmt_channel))
-}
-
-fn setup_wifi_driver(modem: esp_idf_hal::modem::Modem, sys_loop: EspSystemEventLoop, nvs: EspDefaultNvsPartition, ssid: &heapless::String<32>, password: &heapless::String<64>) -> anyhow::Result<EspWifi<'static>, Error> {
-    let mut wifi_driver = EspWifi::new(modem, sys_loop, Some(nvs))?;
-    wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration {
-        ssid: ssid.clone(),
-        password: password.clone(),
-        ..Default::default()
-    }))?;
-    Ok(wifi_driver)
-}
-
-fn connect_wifi(wifi_driver: &mut EspWifi, led_pin: &RefCell<esp_idf_hal::gpio::Gpio8>, rmt_channel: &RefCell<esp_idf_hal::rmt::CHANNEL0>) -> anyhow::Result<(), Error> {
-    if !wifi_driver.is_connected()? {
-        let mut pin = led_pin.borrow_mut();
-        let mut channel = rmt_channel.borrow_mut();
-        set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(255, 255, 0));
-    }
-
-    wifi_driver.start()?;
-    wifi_driver.connect()?;
-
-    while !wifi_driver.is_connected()? {
-        esp_println::println!("Connecting...");
-        sleep(Duration::from_millis(200));
-    }
-
-    if wifi_driver.is_connected()? {
-        let mut pin = led_pin.borrow_mut();
-        let mut channel = rmt_channel.borrow_mut();
-        set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(0, 255, 0));
-    }
-
-    esp_println::println!("Wi-Fi Connected!");
-    Ok(())
-}
 
 /// Initializes the Wi-Fi connection using the provided peripherals and system event loop.
 /// This function retrieves SSID and password from environment variables, attempts to connect
@@ -105,15 +31,12 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
     let (ssid, password) = read_wifi_credentials()?;
     let (led_pin, rmt_channel) = initialize_led_pins(peripherals.pins, peripherals.rmt)?;
 
-
     let nvs = EspDefaultNvsPartition::take()?;
     let mut wifi_driver = setup_wifi_driver(peripherals.modem, sys_loop, nvs, &ssid, &password)?;
 
     connect_wifi(&mut wifi_driver, &led_pin, &rmt_channel)?;
 
     let mut httpserver = EspHttpServer::new(&HttpServerConfig::default())?;
-    
-    use std::sync::{Arc, Mutex};
 
     // Shared state to hold the current LED colors
     let led_colors = Arc::new(Mutex::new(vec![String::from("00FF00")]));
@@ -199,3 +122,77 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
 }
 
 
+// Define a struct to match the expected JSON format
+#[derive(Deserialize)]
+struct ColorRequest {
+    leds: Vec<String>, // Expect an array of hex color strings
+}
+
+pub fn index_html() -> std::string::String {
+    r#"
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>esp-rs web server</title>
+    </head>
+    <body>
+    Hello World from ESP!
+    </body>
+</html>
+"#.to_string()
+}
+
+fn read_wifi_credentials() -> anyhow::Result<(heapless::String<32>, heapless::String<64>), Error> {
+    let wlan_ssid = dotenv!("WIFI_SSID");
+    let wlan_password = dotenv!("WIFI_PASSWORD");
+
+    let mut ssid: heapless::String<32> = heapless::String::new();
+    let mut password: heapless::String<64> = heapless::String::new();
+
+    ssid.push_str(&*wlan_ssid).unwrap();
+    password.push_str(&*wlan_password).unwrap();
+
+    Ok((ssid, password))
+}
+
+fn initialize_led_pins(pins: esp_idf_hal::gpio::Pins, rmt: esp_idf_hal::rmt::RMT) -> anyhow::Result<(RefCell<esp_idf_hal::gpio::Gpio8>, RefCell<esp_idf_hal::rmt::CHANNEL0>), Error> {
+    let led_pin = RefCell::new(pins.gpio8);
+    let rmt_channel = RefCell::new(rmt.channel0);
+    Ok((led_pin, rmt_channel))
+}
+
+fn setup_wifi_driver(modem: esp_idf_hal::modem::Modem, sys_loop: EspSystemEventLoop, nvs: EspDefaultNvsPartition, ssid: &heapless::String<32>, password: &heapless::String<64>) -> anyhow::Result<EspWifi<'static>, Error> {
+    let mut wifi_driver = EspWifi::new(modem, sys_loop, Some(nvs))?;
+    wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration {
+        ssid: ssid.clone(),
+        password: password.clone(),
+        ..Default::default()
+    }))?;
+    Ok(wifi_driver)
+}
+
+fn connect_wifi(wifi_driver: &mut EspWifi, led_pin: &RefCell<esp_idf_hal::gpio::Gpio8>, rmt_channel: &RefCell<esp_idf_hal::rmt::CHANNEL0>) -> anyhow::Result<(), Error> {
+    if !wifi_driver.is_connected()? {
+        let mut pin = led_pin.borrow_mut();
+        let mut channel = rmt_channel.borrow_mut();
+        set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(255, 255, 0));
+    }
+
+    wifi_driver.start()?;
+    wifi_driver.connect()?;
+
+    while !wifi_driver.is_connected()? {
+        esp_println::println!("Connecting...");
+        sleep(Duration::from_millis(200));
+    }
+
+    if wifi_driver.is_connected()? {
+        let mut pin = led_pin.borrow_mut();
+        let mut channel = rmt_channel.borrow_mut();
+        set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(0, 255, 0));
+    }
+
+    esp_println::println!("Wi-Fi Connected!");
+    Ok(())
+}
