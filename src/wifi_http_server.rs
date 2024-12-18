@@ -40,8 +40,8 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
     let led_pin = RefCell::new(peripherals.pins.gpio8);
     let rmt_channel = RefCell::new(peripherals.rmt.channel0);
 
-    let wlan_ssid = "WLAN-Zingst";
-    let wlan_password = "7547112874489301";
+    let wlan_ssid = "FRITZ!Box 7530 JQ";
+    let wlan_password = "qwertzui";
 
     let mut ssid: heapless::String<32> = heapless::String::new();
     let mut password: heapless::String<64> = heapless::String::new();
@@ -83,47 +83,77 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
     let mut httpserver = EspHttpServer::new(&HttpServerConfig::default())?;
 
 
-    // Define Server Request Handler Behaviour on Get for Root URL
-    httpserver.fn_handler("/", Method::Get, |request| {
-        esp_println::println!("Received HTTP request for /");
-        let html = index_html();
-        let mut response = request.into_ok_response()?;
-        response.write(html.as_bytes())?;
-        Ok::<(), Error>(())
-    })?;
+    use std::sync::{Arc, Mutex};
 
+    // Shared state to hold the current LED colors
+    let led_colors = Arc::new(Mutex::new(vec![String::from("00FF00")]));
 
-    // POST /set_color handler
+    // Clone Arc to move into POST handler
+    let led_colors_post = Arc::clone(&led_colors);
     httpserver.fn_handler("/set_color", Method::Post, move |mut request| {
+        esp_println::println!("GET /set_color handler invoked");
         let mut body = [0u8; 512];
         let length = request.read(&mut body)?;
         let body_str = std::str::from_utf8(&body[..length])?;
 
-        // Deserialize the incoming JSON payload
         let color_request: ColorRequest = serde_json::from_str(body_str)
             .map_err(|e| {
                 esp_println::println!("Failed to parse JSON: {}", e);
                 Error::msg("Invalid JSON payload")
             })?;
 
-        // Process each color in the `leds` array
-        for hex_color in color_request.leds {
+        // Update shared state outside of critical section
+        let color_data = {
+            let mut current_colors = led_colors_post.lock().map_err(|_| Error::msg("Mutex poisoned"))?;
+            current_colors.clear();
+            current_colors.extend(color_request.leds.clone());
+            current_colors.clone()
+        };
+
+        // Perform LED updates
+        for hex_color in color_data {
             let rgb = hex_to_rgb(&hex_color).map_err(|e| {
                 esp_println::println!("Failed to convert hex to RGB: {}", e);
                 Error::msg("Invalid hex color")
             })?;
 
             esp_println::println!("Setting LED to: R={}, G={}, B={}", rgb.r, rgb.g, rgb.b);
-            let mut pin = led_pin.borrow_mut(); // Mutably borrow the GPIO pin
-            let mut channel = rmt_channel.borrow_mut(); // Mutably borrow the RMT channel
+            let mut pin = led_pin.borrow_mut();
+            let mut channel = rmt_channel.borrow_mut();
 
-            let _ = set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(rgb.r, rgb.g, rgb.b));
+            set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(rgb.r, rgb.g, rgb.b))?;
         }
 
         let mut response = request.into_ok_response()?;
         response.write(b"{\"status\": \"success\"}")?;
         Ok::<(), Error>(())
     })?;
+
+
+    // Clone Arc to move into GET handler
+    let led_colors_get = Arc::clone(&led_colors);
+    httpserver.fn_handler("/get_color", Method::Get, move |request| {
+        esp_println::println!("GET /get_color handler invoked");
+        let current_colors = led_colors_get.lock().map_err(|_| Error::msg("Mutex poisoned"))?;
+
+        let response_body = serde_json::to_string(&*current_colors).map_err(|e| {
+            esp_println::println!("Failed to serialize colors: {}", e);
+            Error::msg("Serialization error")
+        })?;
+
+        let mut response = request.into_ok_response()?;
+        response.write(response_body.as_bytes())?;
+        Ok::<(), Error>(())
+    })?;
+
+    httpserver.fn_handler("/", Method::Get, |request| {
+        esp_println::println!("GET / handler invoked");
+        let html = index_html();
+        let mut response = request.into_ok_response()?;
+        response.write(html.as_bytes())?;
+        Ok::<(), Error>(())
+    })?;
+
 
     loop {
         std::thread::sleep(std::time::Duration::from_secs(60));

@@ -78,3 +78,22 @@ cargo build --release
 cargo run --release
 
 ```
+
+## How to use the programm
+- how to set a new color
+```sh
+curl -X POST http://192.168.178.50/set_color -H "Content-Type: application/json" -d '{"leds": ["FF00FF"]}'
+```
+will return:
+```
+{"status": "success"}
+```
+
+- how to get the current color
+```sh
+curl http://192.168.178.50/get_color
+```
+will now return:
+```
+["FF00FF"]
+```
