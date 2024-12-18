@@ -18,13 +18,11 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    // Peripherals is a singleton, so we have to pass a pointer to other functions instead of the instance itself
-    // Furthermore it needs to be mutable for the functions to access things inside the struct (like pins and modem)
+    // Peripherals is a singleton
     let peripherals = Peripherals::take().unwrap();
     let sys_loop = EspSystemEventLoop::take();
 
     println!("Starting Christmas Hackathon\nThis application is a basic xmas led starter for christmas led blinking.\n");
-
 
     wifi_http_server::init_wifi(peripherals, sys_loop.clone().unwrap()).expect("Failed to initialize wifi");
 }
