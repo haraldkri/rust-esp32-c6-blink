@@ -1,14 +1,14 @@
+extern crate dotenv;
+#[macro_use]
+extern crate dotenv_codegen;
 mod normal_led;
 mod wifi_http_server;
 mod smart_led;
 
 use esp_idf_hal::peripherals::Peripherals;
-use esp_idf_hal::prelude::*;
+use esp_idf_svc::eventloop::EspSystemEventLoop;
 // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_println::println;
-
-use dotenv::dotenv;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
 
 /**
  * Main function to start the application
@@ -18,11 +18,9 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    dotenv().ok();
-
     // Peripherals is a singleton, so we have to pass a pointer to other functions instead of the instance itself
     // Furthermore it needs to be mutable for the functions to access things inside the struct (like pins and modem)
-    let mut peripherals = Peripherals::take().unwrap();
+    let peripherals = Peripherals::take().unwrap();
     let sys_loop = EspSystemEventLoop::take();
 
     println!("Starting Christmas Hackathon\nThis application is a basic xmas led starter for christmas led blinking.\n");

@@ -1,5 +1,5 @@
 use crate::smart_led;
-use crate::smart_led::set_led_color;
+use crate::smart_led::{hex_to_rgb, set_led_color};
 use anyhow::Error;
 use embedded_svc::http::Method;
 use embedded_svc::wifi::{ClientConfiguration, Configuration};
@@ -36,18 +36,19 @@ pub fn index_html() -> std::string::String {
 
 
 pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyhow::Result<(), Error> {
-    // Wrap the LED pin in a RefCell to allow interior mutability
-    let led_pin = RefCell::new(peripherals.pins.gpio8);
-    let rmt_channel = RefCell::new(peripherals.rmt.channel0);
-
-    let wlan_ssid = "wlan_ssid";
-    let wlan_password = "wlan_password";
+    // Read SSID and password from the environment
+    let wlan_ssid = dotenv!("WIFI_SSID");
+    let wlan_password = dotenv!("WIFI_PASSWORD");
 
     let mut ssid: heapless::String<32> = heapless::String::new();
     let mut password: heapless::String<64> = heapless::String::new();
 
-    ssid.push_str(wlan_ssid).unwrap();
-    password.push_str(wlan_password).unwrap();
+    ssid.push_str(&*wlan_ssid).unwrap();
+    password.push_str(&*wlan_password).unwrap();
+
+    // Wrap the LED pin in a RefCell to allow interior mutability
+    let led_pin = RefCell::new(peripherals.pins.gpio8);
+    let rmt_channel = RefCell::new(peripherals.rmt.channel0);
 
     let nvs = EspDefaultNvsPartition::take()?;
     let mut wifi_driver = EspWifi::new(peripherals.modem, sys_loop, Some(nvs))?;
@@ -160,16 +161,4 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
     }
 }
 
-/// Convert a hex color string to RGB values.
-fn hex_to_rgb(hex: &str) -> Result<smart_led::Rgb, &'static str> {
-    let hex = hex.trim_start_matches('#'); // Remove the '#' if present
-    if hex.len() != 6 {
-        return Err("Hex color must be 6 characters long");
-    }
 
-    let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| "Invalid hex for red")?;
-    let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| "Invalid hex for green")?;
-    let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| "Invalid hex for blue")?;
-
-    Ok(smart_led::Rgb::new(r, g, b))
-}

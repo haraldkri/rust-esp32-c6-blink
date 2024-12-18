@@ -1,10 +1,11 @@
+use crate::smart_led;
 use anyhow::{bail, Error, Result};
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::rmt::config::TransmitConfig;
 use esp_idf_hal::rmt::{FixedLengthSignal, PinState, Pulse, TxRmtDriver, CHANNEL0};
-use std::time::Duration;
 use serde::Deserialize;
+use std::time::Duration;
 
 pub fn static_light_smart(peripherals: &mut Peripherals) {
     let led = &mut peripherals.pins.gpio8;
@@ -147,7 +148,7 @@ impl From<Rgb> for u32 {
 }
 
 /// Convert a hex color string to RGB values.
-pub fn hex_to_rgb(hex: &str) -> Result<Rgb, &'static str> {
+pub fn hex_to_rgb(hex: &str) -> std::result::Result<smart_led::Rgb, &'static str> {
     let hex = hex.trim_start_matches('#'); // Remove the '#' if present
     if hex.len() != 6 {
         return Err("Hex color must be 6 characters long");
@@ -157,5 +158,5 @@ pub fn hex_to_rgb(hex: &str) -> Result<Rgb, &'static str> {
     let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| "Invalid hex for green")?;
     let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| "Invalid hex for blue")?;
 
-    Ok(Rgb::new(r, g, b))
+    Ok(smart_led::Rgb::new(r, g, b))
 }
