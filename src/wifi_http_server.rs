@@ -112,18 +112,26 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
         };
 
         // Perform LED updates
+        let mut rgb_values = Vec::new();
         for hex_color in color_data {
             let rgb = hex_to_rgb(&hex_color).map_err(|e| {
                 esp_println::println!("Failed to convert hex to RGB: {}", e);
                 Error::msg("Invalid hex color")
             })?;
 
-            esp_println::println!("Setting LED to: R={}, G={}, B={}", rgb.r, rgb.g, rgb.b);
-            let mut pin = led_pin.borrow_mut();
-            let mut channel = rmt_channel.borrow_mut();
-
-            set_led_colors(&mut *pin, &mut *channel, &[smart_led::Rgb::new(rgb.r, rgb.g, rgb.b)])?;
+            // Add the RGB values to the vector
+            rgb_values.push(smart_led::Rgb::new(rgb.r, rgb.g, rgb.b));
         }
+
+        for (index, rgb) in rgb_values.iter().enumerate() {
+            println!("led_{}: R: {}, G: {}, B: {}", index, rgb.r, rgb.g, rgb.b);
+        }
+
+        let mut pin = led_pin.borrow_mut();
+        let mut channel = rmt_channel.borrow_mut();
+
+        set_led_colors(&mut *pin, &mut *channel, &*rgb_values)?;
+
 
         let mut response = request.into_ok_response()?;
         response.write(b"{\"status\": \"success\"}")?;
