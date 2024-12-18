@@ -109,8 +109,9 @@ pub fn neopixel_chain(colors: &[Rgb], tx: &mut TxRmtDriver) -> Result<(), Error>
         Pulse::new_with_duration(ticks_hz, PinState::Low, &Duration::from_nanos(600))?,
     );
 
-    // Create a signal for the entire LED chain
-    let mut signal = FixedLengthSignal::<{ 24 * 15 }>::new(); // Adjust for max LED count
+    /// Create a signal for the entire LED chain
+    /// 24 bits per LED, 21 LEDs -> 24 * 21 = 504 Bytes used for the signal, make sure the current CONFIG_ESP_MAIN_TASK_STACK_SIZE is big enought to handle that
+    let mut signal = FixedLengthSignal::<{ 24 * 21 }>::new(); // Adjust for max LED count
     for (index, rgb) in colors.iter().enumerate() {
         let color = rgb.to_u32(); // Use the helper function
         for i in (0..24).rev() {
@@ -158,7 +159,7 @@ impl Rgb {
     pub fn to_u32(&self) -> u32 {
         ((self.g as u32) << 16) | ((self.r as u32) << 8) | (self.b as u32)
     }
-    
+
     /// Converts hue, saturation, value to RGB
     pub fn from_hsv(h: u32, s: u32, v: u32) -> Result<Self> {
         if h > 360 || s > 100 || v > 100 {
