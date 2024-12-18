@@ -1,5 +1,5 @@
 use crate::smart_led;
-use crate::smart_led::{hex_to_rgb, set_led_color};
+use crate::smart_led::{hex_to_rgb, set_led_color, set_led_colors};
 use anyhow::Error;
 use embedded_svc::http::Method;
 use embedded_svc::wifi::{ClientConfiguration, Configuration};
@@ -122,7 +122,7 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
             let mut pin = led_pin.borrow_mut();
             let mut channel = rmt_channel.borrow_mut();
 
-            set_led_color(&mut *pin, &mut *channel, smart_led::Rgb::new(rgb.r, rgb.g, rgb.b))?;
+            set_led_colors(&mut *pin, &mut *channel, &[smart_led::Rgb::new(rgb.r, rgb.g, rgb.b)])?;
         }
 
         let mut response = request.into_ok_response()?;

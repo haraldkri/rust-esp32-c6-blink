@@ -82,6 +82,50 @@ pub fn neopixel(rgb: Rgb, tx: &mut TxRmtDriver) -> Result<(), Error> {
     Ok(())
 }
 
+pub fn set_led_colors(
+    pin: &mut esp_idf_hal::gpio::Gpio8,
+    channel: &mut CHANNEL0,
+    colors: &[Rgb],
+) -> Result<(), Error> {
+    println!("Setting LED chain colors: {:?}", colors);
+
+    let config = TransmitConfig::new().clock_divider(1);
+    let mut tx = TxRmtDriver::new(channel, pin, &config)?;
+
+    // Send the colors to the LED chain
+    if let Err(e) = neopixel_chain(colors, &mut tx) {
+        esp_println::println!("Error setting LED colors: {:?}", e);
+        return Err(e);
+    }
+    Ok(())
+}
+
+pub fn neopixel_chain(colors: &[Rgb], tx: &mut TxRmtDriver) -> Result<(), Error> {
+    let ticks_hz = tx.counter_clock()?;
+    let (t0h, t0l, t1h, t1l) = (
+        Pulse::new_with_duration(ticks_hz, PinState::High, &Duration::from_nanos(350))?,
+        Pulse::new_with_duration(ticks_hz, PinState::Low, &Duration::from_nanos(800))?,
+        Pulse::new_with_duration(ticks_hz, PinState::High, &Duration::from_nanos(700))?,
+        Pulse::new_with_duration(ticks_hz, PinState::Low, &Duration::from_nanos(600))?,
+    );
+
+    // Create a signal for the entire LED chain
+    let mut signal = FixedLengthSignal::<{ 24 * 15 }>::new(); // Adjust for max LED count
+    for (index, rgb) in colors.iter().enumerate() {
+        let color = rgb.to_u32(); // Use the helper function
+        for i in (0..24).rev() {
+            let bit = (color & (1 << i)) != 0;
+            let (high_pulse, low_pulse) = if bit { (t1h, t1l) } else { (t0h, t0l) };
+            signal.set(index * 24 + (23 - i as usize), &(high_pulse, low_pulse))?;
+        }
+    }
+
+    // Send the signal
+    tx.start_blocking(&signal)?;
+    Ok(())
+}
+
+#[derive(Debug)]
 pub(crate) struct Rgb {
     pub(crate) r: u8,
     pub(crate) g: u8,
@@ -99,7 +143,7 @@ pub(crate) struct RgbValueArray {
 }
 
 #[derive(Deserialize)]
-struct RgbValue {
+pub struct RgbValue {
     pub(crate) r: u8,
     pub(crate) g: u8,
     pub(crate) b: u8,
@@ -109,6 +153,12 @@ impl Rgb {
     pub fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
+
+    /// Helper function to convert Rgb into u32 in GRB format
+    pub fn to_u32(&self) -> u32 {
+        ((self.g as u32) << 16) | ((self.r as u32) << 8) | (self.b as u32)
+    }
+    
     /// Converts hue, saturation, value to RGB
     pub fn from_hsv(h: u32, s: u32, v: u32) -> Result<Self> {
         if h > 360 || s > 100 || v > 100 {
