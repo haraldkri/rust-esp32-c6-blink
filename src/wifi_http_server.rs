@@ -40,8 +40,8 @@ pub fn init_wifi(peripherals: Peripherals, sys_loop: EspSystemEventLoop) -> anyh
     let led_pin = RefCell::new(peripherals.pins.gpio8);
     let rmt_channel = RefCell::new(peripherals.rmt.channel0);
 
-    let wlan_ssid = "FRITZ!Box 7530 JQ";
-    let wlan_password = "qwertzui";
+    let wlan_ssid = "wlan_ssid";
+    let wlan_password = "wlan_password";
 
     let mut ssid: heapless::String<32> = heapless::String::new();
     let mut password: heapless::String<64> = heapless::String::new();
